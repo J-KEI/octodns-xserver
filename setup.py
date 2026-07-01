@@ -13,7 +13,7 @@ setup(
     url='https://github.com/hosting-memo/octodns-xserver',
     license='MIT',
     packages=find_packages(),
-    python_requires='>=3.9',
+    python_requires='>=3.10',
     install_requires=[
         'octodns>=1.9.0',
         'requests>=2.28.0',
