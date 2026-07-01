@@ -1,0 +1,69 @@
+---
+# zones/example.com.yaml
+#
+# Sample octoDNS zone file for octodns-xserver.
+# Copy this file and rename it to your domain (e.g. your-domain.jp.yaml).
+#
+# Record name conventions:
+#   ''  (empty string) = zone apex (@) = the domain itself (e.g. example.com)
+#   www                = www.example.com
+#   '*'                = *.example.com (wildcard, must be quoted)
+#   _dmarc             = _dmarc.example.com
+#
+# When multiple record types share the same name (e.g. apex has A, MX, TXT),
+# use a list under the same key:
+#
+#   '':
+#     - type: A
+#       ...
+#     - type: MX
+#       ...
+#
+# Omitting 'ttl' uses the default_ttl defined in octodns-config.yaml.
+
+# --- Apex records (A / MX / TXT at the domain root) ---
+'':
+  - type: A
+    values:
+      - 203.0.113.1
+
+  - type: MX
+    values:
+      - preference: 10
+        exchange: mail.example.com.
+
+  - type: TXT
+    values:
+      - 'v=spf1 include:spf.example.com ~all'
+
+# --- Subdomains ---
+
+www:
+  type: A
+  values:
+    - 203.0.113.1
+
+# Wildcard record — must be quoted to avoid YAML parsing errors
+'*':
+  type: A
+  values:
+    - 203.0.113.1
+
+# --- Email authentication ---
+
+# DMARC — semicolons must be escaped as '\;' in this YAML file
+_dmarc:
+  type: TXT
+  values:
+    - 'v=DMARC1\; p=none\; rua=mailto:dmarc@example.com'
+
+# DKIM (CNAME pointing to the provider-managed key)
+mail._domainkey:
+  type: CNAME
+  value: mail._domainkey.example.com.
+
+# ADSP
+_adsp._domainkey:
+  type: TXT
+  values:
+    - 'dkim=unknown'

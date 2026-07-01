@@ -147,7 +147,7 @@ class TestXServerProviderPopulate(TestCase):
              if r._type == 'TXT' and r.name == '_dmarc'), None
         )
         self.assertIsNotNone(dmarc)
-        self.assertIn('v=DMARC1; p=none', dmarc.values)
+        self.assertIn('v=DMARC1\\; p=none', dmarc.values)
 
     def test_populate_CNAME_has_trailing_dot(self):
         zone = self._populated_zone()
