@@ -1,0 +1,32 @@
+---
+'':
+  - type: A
+    values:
+      - 85.131.213.140
+  - type: MX
+    values:
+      - preference: 10
+        exchange: hosting-memo.jp.
+  - type: TXT
+    values:
+      - 'v=spf1 +a:sv17019.xserver.jp +a:hosting-memo.jp +mx include:spf.sender.xserver.jp ~all'
+
+www:
+  type: A
+  values:
+    - 85.131.213.140
+
+'*':
+  type: A
+  values:
+    - 85.131.213.140
+
+_adsp._domainkey:
+  type: TXT
+  values:
+    - 'dkim=unknown'
+
+default._domainkey:
+  type: TXT
+  values:
+    - 'v=DKIM1\; k=rsa\; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2g1Ayu0qPZP7gqiZtiZVTwJoG2hnWagJ/twBMiNWx4B6GEYTGlo2E34n7E8VL9Qq/DEYN/2FzFEBFTnexHi8gYUK4Uz5Ors+3pPzJy+dnEJn7iCCeylw3FU7U6Ct0Ft1UznO1NPaW5vVtqtGD6sTzUwXflsE6grudTGr7wCMVeZh25nwl8r3jGgO4pa3lArXkTuX0APsmAcRDn2ZSpEboZXxczQm/+kv7cILfOeuk0WQco6dSmGWVKvf4cW/UPKVQUdYvguWlp65TDIO4dEG7icEmKDGxsGf9aKnDX7xR6jOK1Mv4dt1TD2Q6qEeouZlQXgtJLnc9rnACw61rbfsjwIDAQAB'

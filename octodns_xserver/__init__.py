@@ -196,40 +196,29 @@ class XServerClient:
     # ------------------------------------------------------------------
 
     def list_records(self, domain: str) -> list[dict]:
-        """
-        Fetch all DNS records for the specified domain.
-
-        XServer API: GET /v1/server/{servername}/dns?domain={domain}
-
-        Args:
-            domain: Fully-qualified domain name (e.g. ``example.com``).
-                    Punycode conversion for IDN must be done by the caller.
-
-        Returns:
-            List of record dicts. Each dict contains at minimum::
-
-                {
-                    "id":       int,      # XServer-internal record ID
-                    "domain":   str,      # e.g. "example.com"
-                    "host":     str,      # subdomain or "@" for apex
-                    "type":     str,      # "A", "MX", "TXT", ...
-                    "content":  str,      # record value
-                    "ttl":      int,      # seconds (60–86400)
-                    "priority": int|None  # MX/SRV only
-                }
-
-        Raises:
-            XServerClientNotFound:   Domain not managed on this server.
-            XServerClientAuthError:  Invalid or expired API key.
-            XServerClientException:  Any other API error.
-        """
         self.log.debug('list_records: domain=%s', domain)
         result = self._request('GET', self._dns_url, params={'domain': domain})
-        # API returns {"dns": [...]} or a bare list depending on version;
-        # normalise to a list.
         if isinstance(result, dict):
-            return result.get('dns', [])
-        return result or []
+            # Support both 'records' and 'dns' as the response key
+            records = result.get('records', result.get('dns', []))
+        else:
+            records = result or []
+
+        # Normalize FQDN-style host to subdomain label.
+        # XServer API returns host as FQDN (e.g. 'www.hosting-memo.jp')
+        # octoDNS expects short labels (e.g. 'www') or '@' for apex.
+        normalized = []
+        suffix = f'.{domain}'
+        for r in records:
+            r = dict(r)
+            host = r.get('host', '')
+            if host == domain:
+                r['host'] = '@'
+            elif host.endswith(suffix):
+                r['host'] = host[: -len(suffix)]
+            normalized.append(r)
+
+        return normalized
 
     def create_record(self, domain: str, record: dict) -> dict:
         """
@@ -416,8 +405,10 @@ class XServerProvider(BaseProvider):
         return {'ttl': records[0]['ttl'], 'values': values}
 
     def _data_for_TXT(self, records: list[dict]) -> dict:
-        return {'ttl': records[0]['ttl'],
-                'values': [r['content'] for r in records]}
+        # Escape semicolons in TXT values to comply with octoDNS validation.
+        # XServer returns bare semicolons; octoDNS requires them escaped as '\;'
+        values = [r['content'].replace(';', r'\;') for r in records]
+        return {'ttl': records[0]['ttl'], 'values': values}
 
     def _data_for_SRV(self, records: list[dict]) -> dict:
         """XServer SRV content format: 'weight port target'"""
@@ -468,9 +459,16 @@ class XServerProvider(BaseProvider):
                 for v in record.values]
 
     def _records_for_TXT(self, host: str, record) -> list[dict]:
-        return [{'host': host, 'type': 'TXT',
-                 'content': v, 'ttl': record.ttl}
-                for v in record.values]
+        # Unescape '\;' back to ';' before sending to XServer API.
+        return [
+            {
+                'host': host,
+                'type': 'TXT',
+                'content': v.replace(r'\;', ';'),
+                'ttl': record.ttl,
+            }
+            for v in record.values
+        ]
 
     def _records_for_SRV(self, host: str, record) -> list[dict]:
         return [{'host': host, 'type': 'SRV',

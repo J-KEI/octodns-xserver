@@ -1,25 +1,11 @@
-# octodns-config.yaml
-#
-# octoDNS + octodns-xserver の設定ファイル
-#
-# 使い方:
-#   dry-run:  octodns-sync --config-file octodns-config.yaml --dry-run
-#   本番同期: octodns-sync --config-file octodns-config.yaml --doit
-#
-# 環境変数:
-#   XSERVER_API_KEY:    XServerアカウントで発行したAPIキー
-#   XSERVER_SERVERNAME: 初期ドメイン (例: xs123456.xsrv.jp)
-
 providers:
 
-  # YAMLファイルからDNSレコードを読み込むソース
   config:
     class: octodns.provider.yaml.YamlProvider
-    directory: ./zones       # zones/example.com.yaml を参照
+    directory: ./zones
     default_ttl: 3600
     enforce_order: false
 
-  # XServer DNS APIへの同期ターゲット
   xserver:
     class: octodns_xserver.XServerProvider
     api_key: env/XSERVER_API_KEY
@@ -27,18 +13,8 @@ providers:
 
 zones:
 
-  # 管理するドメインを列挙する
-  # zones/example.com.yaml が設定ファイルになる
-  example.com.:
+  hosting-memo.jp.:
     sources:
       - config
     targets:
       - xserver
-
-  # ドメインを追加する場合はここに追記し、
-  # zones/another-domain.jp.yaml を作成する
-  # another-domain.jp.:
-  #   sources:
-  #     - config
-  #   targets:
-  #     - xserver
