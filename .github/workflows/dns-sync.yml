@@ -1,0 +1,40 @@
+name: DNS Sync (Production)
+
+# mainブランチへのマージ時にDNSを実際に同期する
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'zones/**.yaml'
+
+jobs:
+  sync:
+    name: Sync DNS to XServer
+    runs-on: ubuntu-latest
+    # environment: production を設定すると
+    # GitHub上で承認者を設定できる(追加の安全策)
+    environment: production
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install octodns-xserver
+        run: pip install -e .
+
+      - name: Sync DNS
+        env:
+          XSERVER_API_KEY:    ${{ secrets.XSERVER_API_KEY }}
+          XSERVER_SERVERNAME: ${{ secrets.XSERVER_SERVERNAME }}
+        run: |
+          octodns-sync \
+            --config-file octodns-config.yaml \
+            --doit

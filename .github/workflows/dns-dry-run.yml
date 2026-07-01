@@ -1,0 +1,84 @@
+name: DNS Dry Run (PR Preview)
+
+# PRでzones/配下のYAMLが変更された時に実行
+# 実際のDNS変更は行わず、差分をPRコメントに投稿する
+on:
+  pull_request:
+    paths:
+      - 'zones/**.yaml'
+
+jobs:
+  dry-run:
+    name: Preview DNS changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # PRコメント投稿に必要
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install octodns-xserver
+        run: pip install -e .
+
+      # octodns-sync を --dry-run で実行し、差分をファイルに保存
+      - name: Run octodns dry-run
+        id: dryrun
+        env:
+          XSERVER_API_KEY:    ${{ secrets.XSERVER_API_KEY }}
+          XSERVER_SERVERNAME: ${{ secrets.XSERVER_SERVERNAME }}
+        run: |
+          octodns-sync \
+            --config-file octodns-config.yaml \
+            --dry-run \
+            2>&1 | tee /tmp/dryrun.txt
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/dryrun.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # 差分をPRコメントとして投稿
+      - name: Post dry-run result as PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `${{ steps.dryrun.outputs.output }}`;
+            const body = [
+              '## DNS変更プレビュー (dry-run)',
+              '',
+              '```',
+              output,
+              '```',
+              '',
+              '> このPRをmainにマージすると、上記の変更がXServer DNSに反映されます。',
+            ].join('\n');
+
+            // 既存コメントがあれば更新、なければ新規投稿
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =>
+              c.body.startsWith('## DNS変更プレビュー')
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
