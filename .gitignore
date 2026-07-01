@@ -7,3 +7,5 @@ build/
 .pytest_cache/
 
 .env
+
+zones/*.jp.yaml
