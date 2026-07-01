@@ -1,79 +1,68 @@
 # octodns-xserver
 
+> 日本語のドキュメントは [README.ja.md](README.ja.md) をご覧ください。
+
 [octoDNS](https://github.com/octodns/octodns) provider for [XServer](https://www.xserver.ne.jp/) DNS API.
 
-XServerのDNSレコードをYAMLファイルで管理し、GitHub Actionsで自動同期するためのoctoDNSプロバイダーです。
+Manage XServer DNS records as code using YAML files, with automatic sync via GitHub Actions.
 
-> **Note**: XServer API は2026年4月にリリースされました。本プロバイダーはXServer API に対応した最初のoctoDNSプロバイダーです。
-
----
-
-## 対応レコードタイプ
-
-| タイプ | 対応 |
-|--------|------|
-| A      | ✅   |
-| AAAA   | ✅   |
-| CNAME  | ✅   |
-| MX     | ✅   |
-| TXT    | ✅   |
-| SRV    | ✅   |
-| CAA    | ✅   |
+> **Note**: The XServer API was released in April 2026. This is the first octoDNS provider to support XServer DNS.
 
 ---
 
-## インストール
+## Supported record types
+
+| Type  | Supported |
+|-------|-----------|
+| A     | ✅ |
+| AAAA  | ✅ |
+| CNAME | ✅ |
+| MX    | ✅ |
+| TXT   | ✅ |
+| SRV   | ✅ |
+| CAA   | ✅ |
+
+---
+
+## Installation
 
 ```bash
 pip install octodns-xserver
 ```
 
-開発版(GitHubから直接):
+Development version (from GitHub):
 
 ```bash
-pip install git+https://github.com/hosting-memo/octodns-xserver.git
+pip install git+https://github.com/J-KEI/octodns-xserver.git
 ```
 
 ---
 
-## セットアップ
+## Requirements
 
-### 1. XServer APIキーを発行する
-
-XServerアカウントの「APIキー管理」からAPIキーを発行してください。
-
-必要な権限: **DNS 読み取り + 書き込み**
-
-### 2. GitHub Secretsを設定する
-
-リポジトリの `Settings > Secrets and variables > Actions` に以下を登録します。
-
-| シークレット名       | 値                                        |
-|---------------------|------------------------------------------|
-| `XSERVER_API_KEY`    | 発行したAPIキー                           |
-| `XSERVER_SERVERNAME` | 初期ドメイン (例: `xs123456.xsrv.jp`)    |
-
-> **初期ドメインとは**: サーバー契約時に自動付与されるドメインです。追加した独自ドメインは指定できません。
-
-### 3. リポジトリを構成する
-
-```
-your-dns-repo/
-├── octodns-config.yaml     # octoDNS設定ファイル
-├── zones/
-│   ├── example.com.yaml    # ドメインごとのゾーンファイル
-│   └── another.jp.yaml
-└── .github/
-    └── workflows/
-        ├── dns-dry-run.yml  # PR時のプレビュー
-        └── dns-sync.yml     # mainマージ時の同期
-```
+- Python 3.10+
+- octoDNS 1.9.0+
+- An XServer account with API access enabled
 
 ---
 
-## 設定ファイル
+## Setup
 
-### octodns-config.yaml
+### 1. Issue an XServer API key
+
+Log in to the XServer account panel and navigate to **API key management** to issue a new API key.
+
+Required permissions: **DNS read + write**
+
+### 2. Identify your server name
+
+The `servername` is the initial domain assigned at contract time, not a custom domain you added later.
+
+Format:
+- XServer レンタルサーバー: `xs123456.xsrv.jp`
+- XServerビジネス: `xs123456.xbiz.jp`
+
+### 3. Configure octodns-config.yaml
 
 ```yaml
 providers:
@@ -81,6 +70,7 @@ providers:
     class: octodns.provider.yaml.YamlProvider
     directory: ./zones
     default_ttl: 3600
+    enforce_order: false
 
   xserver:
     class: octodns_xserver.XServerProvider
@@ -95,103 +85,136 @@ zones:
       - xserver
 ```
 
-### zones/example.com.yaml
+### 4. Create a zone file
+
+Create `zones/example.com.yaml` with your DNS records.
+See [zones/example.com.yaml](zones/example.com.yaml) for a complete example.
+
+Key points:
+- Use `''` (empty string) for the zone apex (`@`)
+- Wildcard records must be quoted: `'*'`
+- When multiple record types share the same name, use a list under the same key
+- Semicolons in TXT values must be escaped as `\;`
 
 ```yaml
 ---
-# apex (example.com)
 '':
-  type: A
-  values:
-    - 203.0.113.1
+  - type: A
+    values:
+      - 203.0.113.1
+  - type: MX
+    values:
+      - preference: 10
+        exchange: mail.example.com.
+  - type: TXT
+    values:
+      - 'v=spf1 include:spf.example.com ~all'
 
 www:
   type: A
   values:
     - 203.0.113.1
 
-'':
-  type: MX
+'*':
+  type: A
   values:
-    - preference: 10
-      exchange: mail.example.com.
+    - 203.0.113.1
 
-'':
-  type: TXT
-  values:
-    - 'v=spf1 include:xserver.ne.jp ~all'
-
+# Semicolons in TXT values must be escaped as '\;'
 _dmarc:
   type: TXT
   values:
-    - 'v=DMARC1; p=none; rua=mailto:dmarc@example.com'
+    - 'v=DMARC1\; p=none\; rua=mailto:dmarc@example.com'
 ```
 
 ---
 
-## GitHub Actions ワークフロー
+## Usage
 
-本リポジトリの `.github/workflows/` にワークフローのサンプルが含まれています。
-
-### dns-dry-run.yml (PR時)
-
-`zones/` 配下のYAMLを変更してPRを作成すると、実際のDNS変更内容がPRコメントとして自動投稿されます。
-
-```
-## DNS変更プレビュー (dry-run)
-
-Creates=1, Updates=2, Deletes=0
-```
-
-### dns-sync.yml (mainマージ時)
-
-PRをmainにマージすると、XServer DNSに実際の変更が反映されます。
-
-`environment: production` を設定しておくと、GitHub上で承認者を指定できます(追加の安全策)。
-
----
-
-## ローカルでの実行
+### Preview changes (dry run)
 
 ```bash
-# インストール
-pip install -e .
-
-# dry-run (変更内容の確認のみ)
 XSERVER_API_KEY=xxx XSERVER_SERVERNAME=xs123456.xsrv.jp \
-  octodns-sync --config-file octodns-config.yaml --dry-run
+  octodns-sync --config-file octodns-config.yaml
+```
 
-# 本番同期
+No changes are made. The planned changes are displayed only.
+
+### Apply changes
+
+```bash
 XSERVER_API_KEY=xxx XSERVER_SERVERNAME=xs123456.xsrv.jp \
   octodns-sync --config-file octodns-config.yaml --doit
 ```
 
 ---
 
-## 初回導入手順
+## GitHub Actions
 
-既存のDNSレコードをYAMLに取り込む初回エクスポートは現在未実装です(v0.1.0で対応予定)。
+Sample workflow files are included in `.github/workflows/`.
 
-現時点では以下の手順で初回導入を行ってください。
+### dns-dry-run.yml
 
-1. XServerのDNSレコード設定画面を開く
-2. 現在のレコードを確認しながら `zones/your-domain.yaml` を手動で作成する
-3. `--dry-run` で差分が0件になることを確認する
-4. `--doit` で初回同期を実行する
+Triggered when `zones/` YAML files are changed in a pull request.
+Posts a preview of DNS changes as a PR comment — no actual changes are made.
+
+### dns-sync.yml
+
+Triggered when changes are merged to the `main` branch.
+Applies DNS changes to XServer.
+
+Set the following secrets in your repository:
+
+| Secret name          | Value                                      |
+|---------------------|--------------------------------------------|
+| `XSERVER_API_KEY`    | API key issued from the XServer panel      |
+| `XSERVER_SERVERNAME` | Initial domain (e.g. `xs123456.xsrv.jp`)  |
 
 ---
 
-## 開発・テスト
+## Important notes
+
+### Zone files contain sensitive information
+
+Your zone files (`zones/*.yaml`) may contain IP addresses, SPF records, and DKIM public keys. **Do not commit zone files to a public repository.**
+
+Recommended approach:
+- Keep this library in a public repository
+- Manage your zone files in a **private** repository
+
+### First-time import
+
+octodns-xserver does not yet include an export script to generate YAML from existing XServer DNS records. For the initial setup:
+
+1. Open the DNS record settings in the XServer panel
+2. Manually create `zones/your-domain.yaml` based on the current records
+3. Run a dry run and verify that `No changes were planned` is shown
+4. Then run with `--doit` to confirm the sync works correctly
+
+### TXT record semicolons
+
+octoDNS requires semicolons in TXT values to be escaped as `\;` in YAML files.
+This provider automatically handles the conversion when reading from and writing to the XServer API.
+
+### NS records
+
+NS records managed by XServer are automatically skipped during sync.
+
+---
+
+## Development
 
 ```bash
-git clone https://github.com/hosting-memo/octodns-xserver.git
+git clone https://github.com/J-KEI/octodns-xserver.git
 cd octodns-xserver
+python -m venv .venv
+.venv\Scripts\activate   # Windows
 pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
 ---
 
-## ライセンス
+## License
 
 MIT
