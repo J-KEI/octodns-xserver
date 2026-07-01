@@ -1,0 +1,5 @@
+include README.md
+include README.ja.md
+include LICENSE
+recursive-include octodns_xserver *.py
+recursive-include tests *.py
